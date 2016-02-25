@@ -1,44 +1,28 @@
 import React from "react";
-import API from "../API";
-import LinkStore from "../stores/LinkStore";
+import Relay from "react-relay";
+
+import Link from "./Link";
 
 let _getAppState = () => {
   return { links: LinkStore.getAll() };
 }
 
 class Main extends React.Component {
-  static propTypes ={
-    limit: React.PropTypes.number
+  setLimit = (e) => {
+    let newLimit = Number(e.target.value);
+    this.props.relay.setVariables({limit: newLimit});
   }
-
-  static defaultProps ={
-    limit: 4
-  }
-
-  state = _getAppState();
-
-  componentDidMount(){
-    API.fetchLinks();
-    LinkStore.on("change", this.onChange);
-  }
-
-  componentWillUnmount(){
-    LinkStore.removeListener("change", this.onChange);
-  }
-
-  onChange = () => {
-    this.setState(_getAppState());
-  }
-
   render() {
-    let content = this.state.links.slice(0, this.props.limit).map(link => {
-      return <li key={link._id}>
-              <a href={link.url} target="_blank">{link.title}</a>
-             </li>;
+    let content = this.props.store.linkConnection.edges.map(edge => {
+      return <Link key={edge.node.id} link={edge.node} />;
     });
     return (
       <div>
         <h3>Links</h3>
+        <select onChange={this.setLimit}>
+          <option value="5">5</option>
+          <option value="10" selected>10</option>
+        </select>
         <ul>
           {content}
         </ul>
@@ -46,5 +30,26 @@ class Main extends React.Component {
     );
   }
 }
+
+// Declare the data requirement for this component
+Main = Relay.createContainer(Main, {
+  initialVariables: {
+    limit: 10
+  },
+  fragments: {
+    store: () => Relay.QL`
+      fragment on Store {
+        linkConnection(first: $limit) {
+          edges{
+            node {
+              id,
+              ${ Link.getFragment('link') }
+            }
+          }
+        }
+      }
+    `
+  }
+});
 
 export default Main;
